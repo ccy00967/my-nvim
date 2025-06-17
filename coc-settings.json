@@ -1,0 +1,39 @@
+{
+	"languageserver": {
+  "efm": {
+    "command": "efm-langserver",
+    "args": [],
+		// custom config path
+    // "args": ["-c", "/path/to/your/config.yaml"],
+    "filetypes": ["vim", "eruby", "markdown"]
+  	}
+	},
+
+	"suggest.completionItemKindLabels": {
+    "method": "  ",
+    "function": " 󰊕 ",
+    "variable": "[]",
+    "field": "  ",
+    "typeParameter": "  ",
+    "constant": "  ",
+    "class": "  ",
+    "interface": "  ",
+    "struct": "  ",
+    "event": "  ",
+    "operator": " 󰆕 ",
+    "module": "  ",
+    "property": "  ",
+    "enum": "  ",
+    "reference": " 󰈇 ",
+    "keyword": " 󰌋 ",
+    "file": "  ",
+    "folder": "  ",
+    "color": "  ",
+    "unit": "  ",
+    "snippet": " ﬌ ",
+    "text": "  ",
+    "constructor": "  ",
+    "value": "  ",
+    "enumMember": "  "
+  },
+}
