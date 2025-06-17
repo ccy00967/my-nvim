@@ -1,70 +1,89 @@
 #!/bin/bash
-
 set -e
 
 NVIM_VERSION="v0.11.2"
 NVIM_TAR="nvim-linux-x86_64.tar.gz"
 NVIM_URL="https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/${NVIM_TAR}"
 INSTALL_DIR="/usr/local"
-NODE_MIN_VERSION="16"
 
-echo "[1/8] OS 및 Neovim 설치 상태 확인 중..."
-OS_ID=$(grep "^ID=" /etc/os-release | cut -d'=' -f2 | tr -d '"')
+echo "[1/8] 시스템 정보 확인 중..."
+OS_TYPE=$(uname -s)
 ARCH=$(uname -m)
 
-if ! command -v nvim >/dev/null; then
-  echo "[INFO] Neovim 미설치 상태. 설치를 진행합니다."
+# /etc/os-release 파싱 (리눅스 전용)
+if [[ "$OS_TYPE" == "Linux" ]]; then
+  if grep -q WSL /proc/version; then
+    PLATFORM="wsl"
+  else
+    source /etc/os-release
+    PLATFORM="${ID,,}"
+  fi
+elif [[ "$OS_TYPE" == "Darwin" ]]; then
+  PLATFORM="macos"
 else
-  echo "[INFO] 기존 Neovim 제거 중..."
-  sudo rm -f "$(command -v nvim)" || true
+  echo "지원되지 않는 운영체제입니다: $OS_TYPE"
+  exit 1
 fi
 
-echo "[2/8] Neovim ${NVIM_VERSION} 다운로드 중..."
-wget -q --show-progress "${NVIM_URL}"
-tar xzf "${NVIM_TAR}"
+# Neovim 제거
+echo "[2/8] 기존 Neovim 제거..."
+command -v nvim >/dev/null && sudo rm -f "$(command -v nvim)"
 
+# macOS는 brew, 그 외는 tar.gz
 echo "[3/8] Neovim 설치 중..."
-sudo cp -r nvim-linux-*/* "${INSTALL_DIR}/"
-rm -rf nvim-linux-* "${NVIM_TAR}"
+if [[ "$PLATFORM" == "macos" ]]; then
+  brew install neovim
+else
+  wget -q --show-progress "$NVIM_URL"
+  tar xzf "$NVIM_TAR"
+  sudo cp -r nvim-linux-*/* "$INSTALL_DIR/"
+  rm -rf "$NVIM_TAR" nvim-linux-*
+fi
 
+# vim-plug
 echo "[4/8] vim-plug 설치 중..."
 curl -fLo ~/.local/share/nvim/site/autoload/plug.vim --create-dirs \
-     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+  https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 
+# Node.js 설치
 echo "[5/8] Node.js 설치 확인 중..."
 if ! command -v node >/dev/null; then
-  echo "[INFO] Node.js가 없어 설치를 진행합니다."
-  if [[ "$OS_ID" == "ubuntu" || "$OS_ID" == "debian" ]]; then
+  if [[ "$PLATFORM" == "ubuntu" || "$PLATFORM" == "debian" ]]; then
     curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
     sudo apt-get install -y nodejs
-  elif [[ "$OS_ID" == "centos" || "$OS_ID" == "rhel" ]]; then
+  elif [[ "$PLATFORM" == "centos" || "$PLATFORM" == "rhel" ]]; then
     curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
     sudo yum install -y nodejs
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
+  elif [[ "$PLATFORM" == "macos" ]]; then
     brew install node
+  elif [[ "$PLATFORM" == "wsl" ]]; then
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt-get install -y nodejs
   fi
 else
-  echo "[INFO] Node.js는 이미 설치되어 있음"
+  echo "[INFO] Node.js 이미 설치됨"
 fi
 
+# tree-sitter CLI
 echo "[6/8] tree-sitter CLI 설치 확인 중..."
 if ! command -v tree-sitter >/dev/null; then
-  echo "[INFO] tree-sitter CLI 미설치 상태. 설치를 진행합니다."
   if command -v npm >/dev/null; then
     sudo npm install -g tree-sitter-cli
   else
-    echo "[경고] npm이 없어 tree-sitter를 설치할 수 없습니다. Node.js가 올바르게 설치되었는지 확인하세요."
+    echo "[경고] npm이 없어 tree-sitter CLI 설치를 건너뜁니다."
   fi
 else
-  echo "[INFO] tree-sitter CLI는 이미 설치되어 있음"
+  echo "[INFO] tree-sitter CLI 이미 설치됨"
 fi
 
+# 설정 복사
 echo "[7/8] Neovim 설정 복사 중..."
 mkdir -p ~/.config/nvim
 cp -r ./nvim-config/* ~/.config/nvim/
 
+# 플러그인 설치
 echo "[8/8] Neovim 플러그인 설치 시작..."
 nvim --headless +PlugInstall +qall
 
-echo "✅ Neovim 설치 및 설정 완료. 'nvim' 명령어로 실행할 수 있습니다."
+echo "✅ 설치 완료: nvim을 실행해보세요!"
 
