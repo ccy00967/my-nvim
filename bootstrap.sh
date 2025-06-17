@@ -1,103 +1,59 @@
 #!/usr/bin/env bash
 set -e
 
-REQUIRED_NVIM="0.8.0"
-NEOVIM_VERSION="v0.11.2"
-INSTALL_BIN="/usr/local/bin/nvim"
+# 원하는 Neovim 버전
+NVIM_VERSION="v0.11.2"
+NVIM_DISTRO="nvim-linux-x86_64"
+TARBALL="${NVIM_DISTRO}.tar.gz"
+INSTALL_DIR="/usr/local"
+BIN_PATH="/usr/local/bin/nvim"
+SYMLINK="/usr/bin/nvim"
 
-echo "[0/7] OS & Neovim 점검 중..."
+# macOS의 경우 다른 변수로 처리
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  NVIM_DISTRO="nvim-macos"
+  TARBALL="${NVIM_DISTRO}.tar.gz"
+  INSTALL_DIR="/usr/local"
+  BIN_PATH="/usr/local/bin/nvim"
+  SYMLINK="/usr/local/bin/nvim"
+fi
 
-# 운영체제 감지
-OS_TYPE="unknown"
-case "$OSTYPE" in
-  linux*)
-    if grep -qi microsoft /proc/version 2>/dev/null; then OS_TYPE="debian"
-    elif command -v apt >/dev/null; then OS_TYPE="debian"
-    elif command -v yum >/dev/null || command -v dnf >/dev/null; then OS_TYPE="rhel"; fi ;;
-  darwin*) OS_TYPE="macos" ;;
-esac
-if [[ "$OS_TYPE" == "unknown" ]]; then
-  echo "[ERROR] 해당 OS는 지원되지 않습니다: $OSTYPE"
+echo "[1] Neovim 설치 준비 중"
+
+# 기존 nvim 제거
+if command -v nvim >/dev/null 2>&1; then
+  echo "[2] 기존 Neovim 제거 중"
+  sudo rm -f "$(command -v nvim)" || true
+  sudo rm -rf /usr/local/nvim || true
+fi
+
+# 다운로드
+echo "[3] Neovim $NVIM_VERSION 다운로드 중"
+wget -q --show-progress "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/${TARBALL}" || {
+  echo "[오류] Neovim 릴리스 파일을 다운로드할 수 없습니다."
   exit 1
-fi
-
-# 현재 설치된 nvim 버전 확인
-check_nvim() {
-  if ! command -v nvim >/dev/null; then return 1; fi
-  current=$(nvim --version | head -n1 | awk '{print $2}' | sed 's/^v//')
-  if [[ "$(printf '%s\n' "$REQUIRED_NVIM" "$current" | sort -V | head -n1)" = "$REQUIRED_NVIM" ]]; then
-    echo "[OK] Neovim v$current (>= $REQUIRED_NVIM) 설치됨"
-    return 0
-  else
-    echo "[WARN] Neovim v$current (< $REQUIRED_NVIM)"
-    return 1
-  fi
 }
 
-# 설치/업데이트 함수
-install_nvim() {
-  echo "[1/7] 기존 Neovim 제거 중..."
-  case "$OS_TYPE" in
-    debian) sudo apt remove -y neovim || true ;;
-    rhel) sudo yum remove -y neovim 2>/dev/null || sudo dnf remove -y neovim || true ;;
-    macos) brew uninstall neovim 2>/dev/null || true ;;
-  esac
-
-  echo "[2/7] Neovim v$NEOVIM_VERSION 다운로드 준비..."
-  ARCHIVE="nvim-linux-x86_64.tar.gz"
-  URL="https://github.com/neovim/neovim/releases/download/${NEOVIM_VERSION}/${ARCHIVE}"
-  # 유효성 확인
-  if ! curl -fsI "$URL" >/dev/null; then
-    echo "[ERROR] 다운로드 불가 URL: $URL"
-    exit 1
-  fi
-
-  echo "[3/7] 다운로드 중..."
-  curl -L -o "$ARCHIVE" "$URL"
-
-  # 압축 확인 및 설치
-  if file "$ARCHIVE" | grep -q "gzip compressed"; then
-    tar xzf "$ARCHIVE"
-    sudo mv nvim-linux-x86_64/bin/nvim /usr/local/bin/
-    sudo chmod +x "$INSTALL_BIN"
-    rm -rf nvim-linux-x86_64 "$ARCHIVE"
-    echo "[OK] Neovim 설치 완료: $(nvim --version | head -n1)"
-  else
-    echo "[ERROR] 파일 포맷 오류: $ARCHIVE"
-    exit 1
-  fi
+# 압축 해제
+echo "[4] 압축 해제 중"
+tar -xzf "$TARBALL" || {
+  echo "[오류] 압축 해제 실패"
+  exit 1
 }
+rm -f "$TARBALL"
 
-# 설치 필요하면 실행
-if ! check_nvim; then install_nvim; fi
+# 복사
+echo "[5] Neovim 설치 중"
+sudo cp -r "$NVIM_DISTRO"/* "$INSTALL_DIR"
+rm -rf "$NVIM_DISTRO"
 
-echo "[4/7] 환경 설정 복사 중..."
-mkdir -p ~/.config/nvim
-cp init.vim coc-settings.json ~/.config/nvim/
-cp -r after ~/.config/nvim/ 2>/dev/null || true
-
-echo "[5/7] vim-plug 설치..."
-curl -fLo ~/.local/share/nvim/site/autoload/plug.vim --create-dirs \
-  https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-
-echo "[6/7] Node.js 체크 (coc.nvim 용)..."
-if ! command -v node >/dev/null; then
-  echo "[INFO] Node.js 설치 중..."
-  case "$OS_TYPE" in
-    macos) brew install node ;;
-    debian)
-      curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-      sudo apt install -y nodejs ;;
-    rhel)
-      curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
-      sudo yum install -y nodejs ;;
-  esac
-else
-  echo "[OK] Node.js 설치됨"
+# 실행 권한 부여 및 심볼릭 링크 설정
+sudo chmod +x "$BIN_PATH"
+if [[ ! -f "$SYMLINK" || "$(readlink "$SYMLINK")" != "$BIN_PATH" ]]; then
+  sudo ln -sf "$BIN_PATH" "$SYMLINK"
 fi
 
-echo "[7/7] 플러그인 자동 설치..."
-nvim --headless +PlugInstall +qall
-
-echo "✅ 설치 완료! 'nvim' 실행하세요."
+# 버전 확인
+echo "[6] 설치된 Neovim 버전:"
+nvim --version | head -n 1
 
