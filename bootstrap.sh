@@ -1,10 +1,10 @@
 #!/bin/bash
 
-echo "[0/5] 운영체제 및 Neovim 버전 확인 중..."
+echo "[0/6] 운영체제 및 Neovim 버전 확인 중..."
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
-current_version=$(nvim --version 2>/dev/null | head -n1 | awk '{print $2}')
+current_version=$(nvim --version 2>/dev/null | head -n1 | awk '{print $2}' | sed 's/^v//')
 min_version="0.8.0"
 
 version_lt() {
@@ -21,7 +21,7 @@ install_neovim_linux() {
 
 install_neovim_mac() {
   if ! command -v brew &>/dev/null; then
-    echo "[ERROR] macOS에서 Homebrew가 설치되어 있지 않습니다. https://brew.sh/ 참고 후 재실행해주세요."
+    echo "[ERROR] macOS에서 Homebrew가 설치되어 있지 않습니다. https://brew.sh 참고 후 설치해주세요."
     exit 1
   fi
   echo "[INFO] macOS로 감지됨. Homebrew로 Neovim 설치 중..."
@@ -29,8 +29,11 @@ install_neovim_mac() {
   echo "[OK] Neovim 설치 완료"
 }
 
-if ! command -v nvim &>/dev/null || version_lt "$current_version" "$min_version"; then
-  echo "[INFO] 현재 Neovim이 없거나 너무 오래되었습니다: $current_version"
+if ! command -v nvim &>/dev/null; then
+  echo "[INFO] Neovim이 설치되어 있지 않습니다."
+  install_neovim_linux
+elif version_lt "$current_version" "$min_version"; then
+  echo "[INFO] 현재 Neovim 버전($current_version)이 너무 낮습니다. 최신 버전 설치 중..."
   if [[ "$OS" == "Linux" ]]; then
     install_neovim_linux
   elif [[ "$OS" == "Darwin" ]]; then
@@ -43,16 +46,16 @@ else
   echo "[OK] 현재 Neovim 버전: $current_version (충분함)"
 fi
 
-echo "[1/5] Neovim 설정 복사 중..."
+echo "[1/6] Neovim 설정 복사 중..."
 if [ ! -d "$HOME/.config/nvim" ]; then
   mkdir -p "$HOME/.config"
   cp -r "$(pwd)" "$HOME/.config/nvim"
 else
-  echo "[!] ~/.config/nvim 디렉토리가 이미 존재합니다. 덮어쓰려면 수동 삭제 후 다시 실행하세요."
+  echo "[!] ~/.config/nvim 디렉토리가 이미 존재합니다. 덮어쓰려면 수동으로 삭제 후 재실행하세요."
   exit 1
 fi
 
-echo "[2/5] vim-plug 설치 확인 중..."
+echo "[2/6] vim-plug 설치 확인 중..."
 if [ ! -f "$HOME/.local/share/nvim/site/autoload/plug.vim" ]; then
   curl -fLo "$HOME/.local/share/nvim/site/autoload/plug.vim" --create-dirs \
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
@@ -60,7 +63,7 @@ else
   echo "[OK] vim-plug는 이미 설치되어 있습니다."
 fi
 
-echo "[3/5] Node.js 설치 확인 중 (coc.nvim 용)..."
+echo "[3/6] Node.js 설치 확인 중 (coc.nvim 용)..."
 if ! command -v node &> /dev/null; then
   echo "[INFO] Node.js가 설치되어 있지 않습니다. 설치 중..."
   if [[ "$OS" == "Linux" ]]; then
@@ -74,9 +77,12 @@ else
   echo "[OK] Node.js는 이미 설치되어 있습니다."
 fi
 
-echo "[4/5] Neovim 플러그인 설치 중..."
+echo "[4/6] Neovim 플러그인 설치 중..."
 nvim --headless +PlugInstall +qall
 
-echo "[5/5] 모든 설정이 완료되었습니다."
-echo "Neovim을 실행하여 설정이 제대로 적용되었는지 확인해보세요."
+echo "[5/6] 플러그인 설치 완료 여부 확인:"
+ls "$HOME/.local/share/nvim/plugged"
+
+echo "[6/6] 모든 설정이 완료되었습니다."
+echo "Neovim을 실행하여 정상 작동하는지 확인하세요: nvim"
 
