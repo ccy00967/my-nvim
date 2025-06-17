@@ -1,0 +1,53 @@
+# fzf로 ssh 접속할 함수 정의
+ssh_fzf() {
+  zle -I
+  local host
+  host=$(awk '
+    BEGIN {host=""; hostname="-"; port="22"}
+    {
+      line = $0
+      sub(/^ +/, "", line)
+      key = $1
+      val = $2
+      if (key == "Host") {
+        if (host != "") printf "%-12s ── %s:%s\n", host, hostname, port
+        host = val
+        hostname = "-"
+        port = "22"
+      } else if (key == "HostName") {
+        hostname = val
+      } else if (key == "Port") {
+        port = val
+      }
+    }
+    END {
+      if (host != "") printf "%-12s ── %s:%s\n", host, hostname, port
+    }
+  ' ~/.ssh/config | fzf | awk '{print $1}')
+  [[ -n "$host" ]] && BUFFER="ssh $host" && zle accept-line
+}
+zle -N ssh_fzf
+bindkey '^g' ssh_fzf
+
+alias sshlist="awk '
+  BEGIN {host=\"\"; hostname=\"-\"; port=\"22\"}
+  {
+    line = \$0
+    sub(/^ +/, \"\", line)
+    key = \$1
+    val = \$2
+    if (key == \"Host\") {
+      if (host != \"\") printf \"%-12s ── %s:%s\n\", host, hostname, port
+      host = val
+      hostname = \"-\"
+      port = \"22\"
+    } else if (key == \"HostName\") {
+      hostname = val
+    } else if (key == \"Port\") {
+      port = val
+    }
+  }
+  END {
+    if (host != \"\") printf \"%-12s ── %s:%s\n\", host, hostname, port
+  }
+' ~/.ssh/config"
